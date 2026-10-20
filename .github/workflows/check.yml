@@ -1,0 +1,42 @@
+name: Check plugin
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          cache: true
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter test
+      - name: Compile Android plugin
+        run: |
+          flutter create --platforms=android --project-name=location_probe "$RUNNER_TEMP/location_probe"
+          cd "$RUNNER_TEMP/location_probe"
+          flutter pub add oronbox_location --path "$GITHUB_WORKSPACE"
+          cd android
+          ./gradlew :oronbox_location:compileReleaseKotlin --console=plain
+  ios:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.47.5'
+          cache: true
+      - run: flutter precache --ios
+      - name: Check Swift bridge against iOS and Flutter
+        run: |
+          xcrun swiftc -typecheck -target arm64-apple-ios13.0 \
+            -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
+            -F "$FLUTTER_ROOT/bin/cache/artifacts/engine/ios/Flutter.xcframework/ios-arm64" \
+            ios/Classes/OronboxLocationPlugin.swift
